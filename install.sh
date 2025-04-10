@@ -2,12 +2,6 @@
 
 echo "🚀 شروع نصب پنل مدیریت..."
 
-# بررسی مسیر اجرای اسکریپت
-if [ ! -f "$(pwd)/install.sh" ]; then
-    echo "❌ خطا: اسکریپت در مسیر نادرستی اجرا شده است!"
-    exit 1
-fi
-
 # به‌روزرسانی سیستم و نصب وابستگی‌ها
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3 python3-pip python3-venv nodejs mysql-server docker docker-compose git
@@ -18,15 +12,29 @@ if ! command -v python3 &> /dev/null; then
     sudo apt install python3 python3-pip -y
 fi
 
-# تنظیم پایگاه داده (Database)
-sudo mysql -e "CREATE DATABASE IF NOT EXISTS vpn_manager;"
-sudo mysql -e "CREATE USER IF NOT EXISTS 'vpn_admin'@'localhost' IDENTIFIED BY 'your_secure_password';"
-sudo mysql -e "GRANT ALL PRIVILEGES ON vpn_manager.* TO 'vpn_admin'@'localhost';"
-sudo mysql -e "FLUSH PRIVILEGES;"
+# بررسی وجود دیتابیس قبل از ایجاد آن
+DB_EXISTS=$(sudo mysql -e "SHOW DATABASES LIKE 'vpn_manager';" | grep "vpn_manager")
+if [ -z "$DB_EXISTS" ]; then
+    sudo mysql -e "CREATE DATABASE vpn_manager;"
+else
+    echo "⚠️ دیتابیس 'vpn_manager' از قبل وجود دارد، ایجاد مجدد لازم نیست!"
+fi
 
-# دانلود پروژه از GitHub و ورود به دایرکتوری مخزن
+# بررسی وجود کاربر قبل از ایجاد آن
+USER_EXISTS=$(sudo mysql -e "SELECT User FROM mysql.user WHERE User='vpn_admin';" | grep "vpn_admin")
+if [ -z "$USER_EXISTS" ]; then
+    sudo mysql -e "CREATE USER 'vpn_admin'@'localhost' IDENTIFIED BY 'your_secure_password';"
+    sudo mysql -e "GRANT ALL PRIVILEGES ON vpn_manager.* TO 'vpn_admin'@'localhost';"
+    sudo mysql -e "FLUSH PRIVILEGES;"
+else
+    echo "⚠️ کاربر 'vpn_admin' از قبل وجود دارد، ایجاد مجدد لازم نیست!"
+fi
+
+# حذف دایرکتوری مخزن در صورت وجود و کلون مجدد آن
 cd /root
-rm -rf psnetvpn_manager
+if [ -d "psnetvpn_manager" ]; then
+    rm -rf psnetvpn_manager
+fi
 git clone https://github.com/tili1420/psnetvpn_manager.git
 cd psnetvpn_manager
 
@@ -57,8 +65,10 @@ fi
 # اجرای مهاجرت دیتابیس
 python3 manage.py migrate
 
-# بررسی اجرا شدن سرور
+# اجرای سرور Django
 python3 manage.py runserver 0.0.0.0:8000 &
+
+# بررسی اجرا شدن سرور
 sleep 5
 if ! curl -s http://localhost:8000 | grep -q "Django"; then
     echo "❌ خطا در اجرای سرور! لطفاً تنظیمات را بررسی کنید."
