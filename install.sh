@@ -1,30 +1,44 @@
-#!/bin/bash
+k#!/bin/bash
 
 echo "🚀 شروع نصب پنل مدیریت..."
 
-# به‌روزرسانی سرور
+# به‌روزرسانی سیستم
 sudo apt update && sudo apt upgrade -y
 
-# نصب وابستگی‌ها
-sudo apt install -y python3 python3-pip nodejs mysql-server docker docker-compose git
+# نصب وابستگی‌های اصلی
+sudo apt install -y python3 python3-pip python3-venv nodejs mysql-server docker docker-compose git
 
-# تنظیم دیتابیس
+# بررسی نصب بودن Python
+if ! command -v python3 &> /dev/null; then
+    echo "⚠️ Python نصب نشده است، در حال نصب..."
+    sudo apt install python3 python3-pip -y
+fi
+
+# تنظیم پایگاه داده (Database)
 sudo mysql -e "CREATE DATABASE vpn_manager;"
 sudo mysql -e "CREATE USER 'vpn_admin'@'localhost' IDENTIFIED BY 'your_secure_password';"
 sudo mysql -e "GRANT ALL PRIVILEGES ON vpn_manager.* TO 'vpn_admin'@'localhost';"
 sudo mysql -e "FLUSH PRIVILEGES;"
 
-# دانلود پروژه از GitHub و نصب آن
+# دانلود پروژه از GitHub و ورود به دایرکتوری مخزن
 git clone https://github.com/tili1420/psnetvpn_manager.git
 cd psnetvpn_manager
 
-# راه‌اندازی محیط مجازی Python
+# ایجاد محیط مجازی Python
 python3 -m venv env
 source env/bin/activate
-pip install -r requirements.txt
 
-# اجرای پروژه
-python manage.py migrate
-python manage.py runserver 0.0.0.0:8000
+# بررسی وجود فایل requirements.txt و نصب وابستگی‌ها
+if [ -f requirements.txt ]; then
+    pip install -r requirements.txt
+else
+    echo "⚠️ فایل requirements.txt یافت نشد. وابستگی‌ها به‌صورت دستی نصب شوند."
+fi
 
-echo "🎉 نصب و اجرای پنل مدیریت با موفقیت انجام شد!"
+# اجرای مهاجرت دیتابیس
+python3 manage.py migrate
+
+# اجرای سرور Django
+python3 manage.py runserver 0.0.0.0:8000
+
+echo "🎉 نصب و اجرای پنل مدیریت با موفقیت انجام شد! 🚀"
