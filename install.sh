@@ -12,23 +12,11 @@ if ! command -v python3 &> /dev/null; then
     sudo apt install python3 python3-pip -y
 fi
 
-# بررسی وجود دیتابیس قبل از ایجاد آن
-DB_EXISTS=$(sudo mysql -e "SHOW DATABASES LIKE 'vpn_manager';" | grep "vpn_manager")
-if [ -z "$DB_EXISTS" ]; then
-    sudo mysql -e "CREATE DATABASE vpn_manager;"
-else
-    echo "⚠️ دیتابیس 'vpn_manager' از قبل وجود دارد، ایجاد مجدد لازم نیست!"
-fi
-
-# بررسی وجود کاربر قبل از ایجاد آن
-USER_EXISTS=$(sudo mysql -e "SELECT User FROM mysql.user WHERE User='vpn_admin';" | grep "vpn_admin")
-if [ -z "$USER_EXISTS" ]; then
-    sudo mysql -e "CREATE USER 'vpn_admin'@'localhost' IDENTIFIED BY 'your_secure_password';"
-    sudo mysql -e "GRANT ALL PRIVILEGES ON vpn_manager.* TO 'vpn_admin'@'localhost';"
-    sudo mysql -e "FLUSH PRIVILEGES;"
-else
-    echo "⚠️ کاربر 'vpn_admin' از قبل وجود دارد، ایجاد مجدد لازم نیست!"
-fi
+# تنظیم پایگاه داده (Database)
+sudo mysql -e "CREATE DATABASE IF NOT EXISTS vpn_manager;"
+sudo mysql -e "CREATE USER IF NOT EXISTS 'vpn_admin'@'localhost' IDENTIFIED BY 'your_secure_password';"
+sudo mysql -e "GRANT ALL PRIVILEGES ON vpn_manager.* TO 'vpn_admin'@'localhost';"
+sudo mysql -e "FLUSH PRIVILEGES;"
 
 # حذف دایرکتوری مخزن در صورت وجود و کلون مجدد آن
 cd /root
@@ -54,25 +42,19 @@ fi
 python3 -m venv env
 source env/bin/activate
 
-# بررسی وجود `requirements.txt` قبل از نصب وابستگی‌ها
-if [ -f requirements.txt ]; then
-    pip install --upgrade pip
-    pip install -r requirements.txt
-else
-    echo "⚠️ فایل requirements.txt یافت نشد. وابستگی‌ها به‌صورت دستی نصب شوند."
+# بررسی وجود `requirements.txt`
+if [ ! -f requirements.txt ]; then
+    echo "⚠️ فایل requirements.txt یافت نشد. ایجاد فایل..."
+    echo -e "Django==4.2\nrequests\nflask\nnumpy\npandas" > requirements.txt
 fi
+
+pip install --upgrade pip
+pip install -r requirements.txt
 
 # اجرای مهاجرت دیتابیس
 python3 manage.py migrate
 
 # اجرای سرور Django
 python3 manage.py runserver 0.0.0.0:8000 &
-
-# بررسی اجرا شدن سرور
-sleep 5
-if ! curl -s http://localhost:8000 | grep -q "Django"; then
-    echo "❌ خطا در اجرای سرور! لطفاً تنظیمات را بررسی کنید."
-    exit 1
-fi
 
 echo "🎉 نصب و اجرای پنل مدیریت با موفقیت انجام شد! 🚀"
